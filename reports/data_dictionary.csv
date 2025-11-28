@@ -1,0 +1,14 @@
+column_name,data_type,missing_pct,n_unique
+status_id,numeric,0,99390
+created_at,"POSIXct,POSIXt",0,99343
+user_id,numeric,0,1998
+screen_name,character,0,26057
+text,character,0,99390
+lang,character,0,2
+source,character,0,3
+reply_count,numeric,0,61
+retweet_count,numeric,0,94
+favorite_count,numeric,0,251
+user_followers_count,numeric,0,3995
+is_retweet,logical,0,1
+is_quote,logical,0,2
