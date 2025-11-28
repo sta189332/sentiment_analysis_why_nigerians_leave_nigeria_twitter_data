@@ -130,8 +130,13 @@ vader_by_tweet <- bind_cols(
 
 message("Combining token-based and tweet-level sentiment features...")
 
+# include engagement metrics from cleaned tweets
 sentiment_tweets <- tweets %>%
-  select(status_id, created_at, lang, year, month, week, text) %>%
+  select(
+    status_id, created_at, lang, year, month, week, text,
+    reply_count, retweet_count, favorite_count, user_followers_count
+  ) %>%
+
   left_join(afinn_by_tweet, by = "status_id") %>%
   left_join(nrc_by_tweet, by = "status_id") %>%
   left_join(vader_by_tweet, by = "status_id")
