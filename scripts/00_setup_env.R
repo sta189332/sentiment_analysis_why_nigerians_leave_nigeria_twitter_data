@@ -3,7 +3,7 @@
 # Purpose:
 #   Initialize a reproducible environment for the large-scale
 #   sentiment analysis project:
-#   "Why Nigerians Leave Nigeria — 2018–2025 Twitter Corpus".
+#   "Why Nigerians Leave Nigeria  2018 to2025 Twitter Corpus".
 #   This script:
 #     - installs required packages
 #     - activates renv
@@ -46,7 +46,7 @@ if (!file.exists("renv.lock")) {
   message("Initializing renv for reproducibility...")
   renv::init(bare = TRUE)
 } else {
-  message("renv.lock found — restoring environment...")
+  message("renv.lock found  restoring environment...")
   renv::restore(prompt = FALSE)
 }
 
