@@ -1,311 +1,53 @@
-# ==========================================================
-<<<<<<< HEAD
+# ------------------------------------------------------------
 # Script: 06_structural_breaks.R
-# Purpose:
-#   Detect structural breaks in sentiment time series
-#   using breakpoints() and segmented regression.
-#
-# Input:
-#   data/processed/04_sentiment_tweets.rds
-#
-# Outputs:
-#   outputs/figures/breakpoints_compound.png
-#   outputs/figures/breakpoints_afinn.png
-#   reports/structural_breaks_summary.csv
-=======
-# Script: 09E_predict_negativity.R  (FINAL FIXED VERSION)
-# Purpose:
-#   Predict negative tweets using language, engagement,
-#   timing, and sentiment features.
-#
-# Inputs:
-#   data/processed/04_sentiment_tweets.rds
-#   data/processed/02_tweets_clean.rds
-#
-# Outputs:
-#   reports/09E_model_performance_summary.csv
-#   reports/09E_model_coef_logit.csv
-#   reports/09E_model_confusion_matrix.csv
-#   data/processed/09E_predictions.rds
-#   outputs/figures/09E_roc_curve_logit.png
->>>>>>> af0cf8c83fef3b47d786675005bc368b199f2e36
-# ==========================================================
+# Purpose: Identify structural breaks in daily compound sentiment.
+# ------------------------------------------------------------
 
-if (!"here" %in% loadedNamespaces()) {
-  source("scripts/00_setup_env.R")
-}
-
-<<<<<<< HEAD
 library(dplyr)
-library(strucchange)
 library(ggplot2)
-library(here)
+library(strucchange)
 library(readr)
-library(lubridate)
-library(tsibble)
+library(here)
 
-sent_path <- here("data", "processed", "04_sentiment_tweets.rds")
-sent <- readRDS(sent_path)
+message("=== 06: Structural Breaks Analysis ===")
 
-# ensure monthly aggregation
-monthly <- sent %>%
-  mutate(month = floor_date(created_at, "month")) %>%
-  group_by(month) %>%
-  summarise(
-    mean_compound = mean(compound, na.rm = TRUE),
-    mean_afinn    = mean(afinn_sum, na.rm = TRUE),
-    .groups = "drop"
-  )
+# Load daily sentiment
+sent <- readRDS(here("data/processed/04_sentiment_tweets.rds"))
 
-# ==========================================================
-# 1. STRUCTURAL BREAKS FOR VADER COMPOUND
-# ==========================================================
+df <- sent %>%
+  mutate(date = as.Date(created_at)) %>%
+  group_by(date) %>%
+  summarise(mean_compound = mean(compound, na.rm = TRUE)) %>%
+  ungroup()
 
-bp_comp <- breakpoints(mean_compound ~ 1, data = monthly)
+# Breakpoints
+bp <- breakpoints(mean_compound ~ 1, data = df)
 
-bp_comp_breaks <- breakdates(bp_comp)
-bp_comp_breaks
+bp_df <- tibble(
+  break_id = seq_along(bp$breakpoints),
+  index = bp$breakpoints,
+  date = df$date[bp$breakpoints]
+)
+
+write_csv(bp_df, here("reports/structural_breaks_summary.csv"))
 
 # Plot
-p_comp <- ggplot(monthly, aes(x = month, y = mean_compound)) +
-  geom_line() +
-  geom_vline(xintercept = bp_comp_breaks, color = "red", linetype = "dashed") +
+p <- ggplot(df, aes(date, mean_compound)) +
+  geom_line(color = "steelblue") +
+  geom_vline(
+    xintercept = bp_df$date,
+    color = "red", linetype = "dashed"
+  ) +
   labs(
-    title = "Structural Breaks in Sentiment (sentimentr compound)",
-    x = "Month",
-    y = "Mean compound sentiment"
-  )
-
-fig_dir <- here("outputs", "figures")
-if (!dir.exists(fig_dir)) dir.create(fig_dir, recursive = TRUE)
+    title = "Structural Breaks in Daily Compound Sentiment",
+    x = "Date",
+    y = "Mean Compound Sentiment"
+  ) +
+  theme_minimal()
 
 ggsave(
-  filename = file.path(fig_dir, "breakpoints_compound.png"),
-  plot = p_comp, width = 9, height = 5, dpi = 300
+  here("outputs/figures/breakpoints_compound.png"),
+  p, width = 10, height = 5
 )
 
-# ==========================================================
-# 2. STRUCTURAL BREAKS FOR AFINN
-# ==========================================================
-
-bp_af <- breakpoints(mean_afinn ~ 1, data = monthly)
-bp_af_breaks <- breakdates(bp_af)
-
-p_af <- ggplot(monthly, aes(x = month, y = mean_afinn)) +
-  geom_line() +
-  geom_vline(xintercept = bp_af_breaks, color = "blue", linetype = "dashed") +
-  labs(
-    title = "Structural Breaks in Sentiment (AFINN total score)",
-    x = "Month",
-    y = "Mean AFINN sentiment"
-  )
-
-ggsave(
-  filename = file.path(fig_dir, "breakpoints_afinn.png"),
-  plot = p_af, width = 9, height = 5, dpi = 300
-)
-
-# ==========================================================
-# 3. SAVE BREAKPOINT SUMMARY
-# ==========================================================
-
-summary_tbl <- tibble(
-  sentiment_type = c("compound", "afinn"),
-  n_breakpoints  = c(length(bp_comp_breaks), length(bp_af_breaks)),
-  break_dates    = c(
-    paste(as.character(bp_comp_breaks), collapse = "; "),
-    paste(as.character(bp_af_breaks), collapse = "; ")
-  )
-)
-
-write_csv(summary_tbl, here("reports", "structural_breaks_summary.csv"))
-
-# ==========================================================
-message("Structural break detection completed.")
-=======
-# ---- Libraries ----
-library(dplyr)
-library(tidyr)
-library(readr)
-library(lubridate)
-library(forcats)
-library(ggplot2)
-library(here)
-
-library(rsample)
-library(recipes)
-library(parsnip)
-library(workflows)
-library(yardstick)
-library(tune)
-library(dials)
-library(vip)
-library(purrr)
-
-# ---- 1. Load datasets ----
-sent_path  <- here("data", "processed", "04_sentiment_tweets.rds")
-clean_path <- here("data", "processed", "02_tweets_clean.rds")
-
-sent  <- readRDS(sent_path)
-clean <- readRDS(clean_path)
-
-message("Loaded sentiment dataset: ", nrow(sent))
-message("Loaded clean tweets: ", nrow(clean))
-
-# ---- 2. Merge engagement metadata into sentiment ----
-model_df <- sent %>%
-  left_join(
-    clean %>%
-      select(
-        status_id,
-        reply_count,
-        retweet_count,
-        favorite_count,
-        user_followers_count,
-        is_retweet,
-        is_quote
-      ),
-    by = "status_id"
-  )
-
-# ---- 3. Create modelling variables ----
-model_df <- model_df %>%
-  mutate(
-    lang_group = case_when(
-      lang %in% c("en", "pcm") ~ lang,
-      lang %in% c("und", "", NA) ~ "und",
-      TRUE ~ "other"
-    ),
-    lang_group = factor(lang_group),
-
-    hour = hour(created_at),
-    wday = wday(created_at, label = TRUE, week_start = 1),
-    month_num = month(created_at),
-
-    neg_flag = if_else(compound < 0, "negative", "non_negative")
-  ) %>%
-  filter(!is.na(neg_flag)) %>%
-  drop_na()
-
-model_df$neg_flag <- factor(
-  model_df$neg_flag,
-  levels = c("non_negative", "negative")
-)
-
-message("Final modelling DF size: ", nrow(model_df))
-
-# ---- 4. Train-test split ----
-set.seed(20251128)
-split <- initial_split(model_df, prop = 0.80, strata = neg_flag)
-
-train_data <- training(split)
-test_data  <- testing(split)
-
-# ---- 5. Preprocessing recipe ----
-rec <- recipe(neg_flag ~ ., data = train_data) %>%
-  update_role(status_id, new_role = "ID") %>%
-  step_dummy(all_nominal_predictors()) %>%
-  step_zv(all_predictors()) %>%
-  step_log(
-    user_followers_count,
-    reply_count,
-    retweet_count,
-    favorite_count,
-    offset = 1
-  ) %>%
-  step_normalize(all_numeric_predictors())
-
-# ---- 6. Logistic regression with L1 penalty (LASSO) ----
-logit_mod <- logistic_reg(
-  penalty = tune(),
-  mixture = 1
-) %>% set_engine("glmnet") %>%
-  set_mode("classification")
-
-wf <- workflow() %>%
-  add_recipe(rec) %>%
-  add_model(logit_mod)
-
-set.seed(20251128)
-cv <- vfold_cv(train_data, v = 5, strata = neg_flag)
-
-grid <- grid_regular(
-  penalty(range = c(-4, 0)),
-  levels = 10
-)
-
-tuned <- tune_grid(
-  wf,
-  resamples = cv,
-  grid = grid,
-  metrics = metric_set(roc_auc, accuracy)
-)
-
-best <- select_best(tuned, "roc_auc")
-final_wf <- finalize_workflow(wf, best)
-
-# ---- 7. Fit model ----
-final_fit <- final_wf %>% fit(data = train_data)
-
-# ---- 8. Predict on test data ----
-preds <- final_fit %>%
-  predict(test_data, type = "prob") %>%
-  bind_cols(predict(final_fit, test_data)) %>%
-  bind_cols(test_data %>% select(status_id, neg_flag))
-
-colnames(preds)[colnames(preds) == ".pred_class"] <- "pred_class"
-
-# ---- 9. Compute evaluation metrics ----
-roc_obj <- roc_auc(preds, truth = neg_flag, .pred_negative)
-acc_obj <- accuracy(preds, truth = neg_flag, pred_class)
-cm      <- conf_mat(preds, truth = neg_flag, pred_class)
-
-# ---- 10. Variable importance ----
-vip_tbl <- final_fit %>%
-  extract_fit_parsnip() %>%
-  vip::vi(lambda = best$penalty) %>%
-  arrange(desc(Importance))
-
-# ---- 11. Save outputs ----
-write_csv(
-  tibble(
-    metric = c("roc_auc", "accuracy"),
-    value = c(roc_obj$.estimate, acc_obj$.estimate)
-  ),
-  here("reports", "09E_model_performance_summary.csv")
-)
-
-write_csv(vip_tbl, here("reports", "09E_model_coef_logit.csv"))
-write_csv(as_tibble(cm$table),
-          here("reports", "09E_model_confusion_matrix.csv"))
-
-saveRDS(preds, here("data", "processed", "09E_predictions.rds"))
-
-# ---- 12. ROC curve ----
-roc_df <- roc_curve(preds, truth = neg_flag, .pred_negative)
-
-p <- ggplot(roc_df, aes(1 - specificity, sensitivity)) +
-  geom_path(color = "blue", size = 1) +
-  geom_abline(linetype = "dashed") +
-  coord_equal() +
-  theme_minimal() +
-  labs(
-    title = "ROC Curve – Predicting Negative Tweets",
-    x = "1 - Specificity",
-    y = "Sensitivity"
-  )
-
-ggsave(
-  here("outputs/figures/09E_roc_curve_logit.png"),
-  p, width = 6, height = 6, dpi = 300
-)
-
-message("ROC AUC: ", roc_obj$.estimate)
-message("Accuracy: ", acc_obj$.estimate)
-message("Model complete.")
-
-message("✅ 09E_predict_negativity.R completed successfully.")
-# ==========================================================
-# End of script
->>>>>>> af0cf8c83fef3b47d786675005bc368b199f2e36
-# ==========================================================
+message("Structural break analysis completed.")
